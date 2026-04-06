@@ -3,12 +3,12 @@
  */
 
 use ratatui::{
-    widgets::{Block, Borders, List, ListItem},
-    Style::{Color, Style},
+    widgets::{Block, Borders, List, ListItem, ListState},
+    style::{Color, Style},
     Frame,
 };
-use crate app::App;
-use crate parser::Severity;
+use crate::app::App;
+use crate::parser::Severity;
 
 
 fn get_color(severity: &Severity) -> Style {
@@ -32,7 +32,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .detections
         .iter()
         .map(|d| {
-            ListItems::new(format!(
+
+            let count = app.counts.get(&d.name).unwrap_or(&1);
+
+            ListItem::new(format!(
                     "{} (x{})\n{}\nFix: {}",
                     d.name, count, d.message, d.fix
             ))

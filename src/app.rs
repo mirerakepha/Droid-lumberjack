@@ -20,7 +20,7 @@ impl App {
         }
     }
 
-    pub fn add_detection(&mut self, detection: Detections){
+    pub fn add_detection(&mut self, detection: Detection){
 
         let key = detection.name.clone();
 
@@ -32,7 +32,7 @@ impl App {
         self.detections.retain(|d| d.name != key);
 
         // insert newest at top
-        self.detections.insert(0, detection);
+        self.detections.insert(0, detection.clone());
 
         self.detections.push(detection);
     }
@@ -54,11 +54,11 @@ impl App {
         let mut warning = 0;
         let mut info = 0;
 
-        for d in &self.detection {
+        for d in &self.detections {
             match d.severity {
-                Severiry::Critical => critical += 1,
-                Severiry::Warning => warning += 1,
-                Severiry::Info => info += 1,
+                Severity::Critical => critical += 1,
+                Severity::Warning => warning += 1,
+                Severity::Info => info += 1,
             }
         } 
         (critical, warning, info)

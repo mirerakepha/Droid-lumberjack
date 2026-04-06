@@ -1,4 +1,5 @@
-use crate rules::Rule;
+use crate::rules::default_rules;
+use crate::rules::Rule;
 
 /*
  * Loop through log lines
@@ -16,20 +17,21 @@ pub enum Severity {
 
 #[derive(Debug, Clone)]
 pub struct Detection {
-    name: String,
-    message: String,
-    fix: String,
-    severity: Severity,
+    pub name: String,
+    pub message: String,
+    pub fix: String,
+    pub severity: Severity,
 }
 
 
 pub fn parse_line(line: &str, rule: &[Rule]) -> Option<Detection> {
-    for rule in rules {
+    for rule in default_rules() {
         if rule.pattern.is_match(line) {
-            return some( Detection { //Some means an issue is found 
+            return Some( Detection { //Some means an issue is found 
                 name: rule.name.to_string(),
                 message: rule.message.to_string(),
-                fix: rule.fix.to_string()
+                fix: rule.fix.to_string(),
+                severity: rule.severity.clone(),
             });
         } 
     }

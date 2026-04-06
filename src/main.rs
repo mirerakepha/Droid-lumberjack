@@ -1,5 +1,6 @@
 
 mod app;
+mod adb;
 mod input;
 mod parser;
 mod rules;
@@ -8,7 +9,7 @@ mod ui;
 // in android studio you run -> adb logcat -T 1 | lumberjack
 
 use crossterm::{
-    terminal::{enable_raw_mode, disable_row_mode},
+    terminal::{enable_raw_mode, disable_raw_mode},
     execute,
     event::{self, Event, KeyCode}
 }; 
@@ -27,11 +28,11 @@ use std::io;
 use std::env;
 
 fn main() -> Result<(), io::Error> {
-    let args = Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 || args[1] != "start" {
         println!("Usage: lumberjack start");
-        return ok(());
+        return Ok(());
     }
 
     run()
@@ -51,7 +52,7 @@ fn run() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    for line in input::read_lines() {
+    for line in adb::spawn_logcat() {
 
         // keyboard input
         if event::poll(std::time::Duration::from_millis(50))? {
