@@ -6,6 +6,7 @@ use crate::parser::{Detection, Severity};
 use std::collections::HashMap;
 
 pub struct App {
+    pub raw_logs: Vec<String>,
     pub detections: Vec<Detection>,
     pub counts: HashMap<String, usize>,
     pub selected: usize,
@@ -17,6 +18,16 @@ impl App {
             detections: Vec::new(),
             counts: HashMap::new(),
             selected: 0,
+            raw_logs: Vec::new(),
+        }
+    }
+
+    //Raw Logs 
+    pub fn add_raw(&mut self, line: String) {
+        self.raw_logs.insert(0, line);
+
+        if self.raw_logs.len() > 50 {
+            self.raw_logs.pop();
         }
     }
 

@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader};
 
 pub fn spawn_logcat() -> impl Iterator<Item = String> {
     let mut child = Command::new("adb")
-        .args(["logcat", "-T", "1"]) // command that gets logcart content
+        .args(["logcat", "-v", "brief", "-T", "1"]) // command that gets logcart content
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to start adb");
