@@ -10,6 +10,7 @@ pub struct App {
     pub detections: Vec<Detection>,
     pub counts: HashMap<String, usize>,
     pub selected: usize,
+    pub expanded: bool,
 }
 
 impl App {
@@ -19,6 +20,7 @@ impl App {
             counts: HashMap::new(),
             selected: 0,
             raw_logs: Vec::new(),
+            expanded: false,
         }
     }
 
@@ -43,9 +45,11 @@ impl App {
         self.detections.retain(|d| d.name != key);
 
         // insert newest at top
-        self.detections.insert(0, detection.clone());
+        self.detections.insert(0, detection);
+    }
 
-        self.detections.push(detection);
+    pub fn toggle_expand(&mut self) {
+        self.expanded = !self.expanded;
     }
 
     pub fn next(&mut self) {

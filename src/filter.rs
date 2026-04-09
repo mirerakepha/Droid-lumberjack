@@ -1,7 +1,9 @@
+/*
+ */
 pub fn should_keep(line: &str) -> bool {
 
     //keep important log levels
-    if !(line.starts_with("E/") || line.starts_with("W/") || line.starts_with("I/")) {
+    if !(line.contains(" E ") || line.contains(" W ") || line.contains(" I ")) {
         return false;
     }
 
@@ -9,8 +11,8 @@ pub fn should_keep(line: &str) -> bool {
         "OpenGLRenderer",
         "Choreographer",
         "BufferQueue",
-        "SurfaceView",
-        "ViewRootImpl"
+        //"SurfaceView",
+        //"ViewRootImpl"
     ];
 
 

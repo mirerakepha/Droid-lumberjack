@@ -1,4 +1,3 @@
-use crate::rules::default_rules;
 use crate::rules::Rule;
 
 /*
@@ -25,7 +24,7 @@ pub struct Detection {
 
 
 pub fn parse_line(line: &str, rules: &[Rule]) -> Option<Detection> {
-    for rule in default_rules() {
+    for rule in rules {
         if rule.pattern.is_match(line) {
             return Some( Detection { //Some means an issue is found 
                 name: rule.name.to_string(),

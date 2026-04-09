@@ -8,88 +8,91 @@ mod ui;
 mod splash;
 mod filter;
 
-// in android studio you run -> adb logcat -T 1 | lumberjack
-
 use crossterm::{
-    terminal::{enable_raw_mode, disable_raw_mode},
+    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
-    event::{self, Event, KeyCode, KeyModifiers}
-}; 
-
-use ratatui::{
-    Terminal,
-    backend::CrosstermBackend,
+    event::{self, Event, KeyCode, KeyModifiers, KeyEventKind},
 };
-
+use ratatui::{Terminal, backend::CrosstermBackend};
 use app::App;
 use parser::parse_line;
 use rules::default_rules;
-
 use std::io;
 use std::env;
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = env::args().collect();
-
     if args.len() < 2 || args[1] != "start" {
         println!("Usage: lumberjack start");
         return Ok(());
     }
-
     run()
 }
 
-
-
-
 fn run() -> Result<(), io::Error> {
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
     let rules = default_rules();
     let mut app = App::new();
 
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || {
+        for line in adb::spawn_logcat() {
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout)?;
-
+    execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     terminal.draw(|f| splash::splash(f))?;
-    std::thread::sleep(std::time::Duration::from_millis(6000));
+    thread::sleep(Duration::from_millis(1500));
+
+    'main: loop {
     
-    for line in adb::spawn_logcat() {
-
-        //println!("{}", line); //debug for seeing logcat info
-        
-        //filter logs
-        if !filter::should_keep(&line) {
-            continue;
-        }
-
-        // keyboard input
-        if event::poll(std::time::Duration::from_millis(50))? {
+        if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Esc => break,
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
-                    KeyCode::Down => app.next(),
-                    KeyCode::Up => app.previous(),
-                    KeyCode::Char('q') => break,
-                    _ => {}
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Esc => break 'main,
+                        KeyCode::Char('q') => break 'main,
+                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break 'main,
+                        KeyCode::Enter => app.toggle_expand(),
+                        KeyCode::Down  => app.next(),
+                        KeyCode::Up    => app.previous(),
+                        _ => {}
+                    }
                 }
             }
         }
 
-        // parse logs
-        if let Some(detection) = parse_line(&line, &rules) {
-            app.add_detection(detection);
-        } else {
-            app.add_raw(line.clone())
+        // Drain up to 20 log lines per frame
+        for _ in 0..20 {
+            match rx.try_recv() {
+                Ok(line) => {
+                    if !filter::should_keep(&line) { continue; }
+                    if let Some(detection) = parse_line(&line, &rules) {
+                        app.add_detection(detection);
+                    } else {
+                        app.add_raw(line);
+                    }
+                }
+                Err(_) => break,
+            }
         }
 
-        // draw UI
         terminal.draw(|f| ui::draw(f, &app))?;
     }
 
+    // Always restore terminal, even on q
     disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
