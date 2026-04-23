@@ -73,11 +73,12 @@ fn run() -> Result<(), io::Error> {
             }
         }
 
-        // Drain up to 20 log lines per frame
-        for _ in 0..20 {
+        // Drain up to 50 log lines per frame
+        for _ in 0..50 {
             match rx.try_recv() {
                 Ok(line) => {
-                    if !filter::should_keep(&line) { continue; }
+                    //if !filter::should_keep(&line) { continue; }
+                    //println!("LOG: {}", line);
                     if let Some(detection) = parse_line(&line, &rules) {
                         app.add_detection(detection);
                     } else {

@@ -133,13 +133,16 @@ pub fn draw(frame: &mut Frame, app: &App) {
         cols[1]);
 
     // Right: raw log tail
-    let raw_items: Vec<ListItem> = app.raw_logs.iter().map(|line| {
-        ListItem::new(Span::styled(line.clone(),
-            Style::default().fg(Color::DarkGray)))
+    let raw_text: Vec<Line> = app.raw_logs.iter().map(|line| {
+        Line::from(Span::styled(
+                line.clone(),
+                Style::default().fg(Color::DarkGray),
+        ))
     }).collect();
 
     frame.render_widget(
-        List::new(raw_items)
+        Paragraph::new(raw_text)
+            .wrap(Wrap {trim: false})
             .block(Block::default()
                 .title(" Raw logs ")
                 .borders(Borders::ALL)

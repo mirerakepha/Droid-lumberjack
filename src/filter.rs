@@ -1,26 +1,28 @@
 /*
  */
 pub fn should_keep(line: &str) -> bool {
-
-    //keep important log levels
-    if !(line.contains(" E ") || line.contains(" W ") || line.contains(" I ")) {
+    if line.starts_with("--------- beginning of") {
         return false;
     }
-
+    // Drop pure debug/verbose but keep E, W, I, F
+    let has_level = line.contains(" E ")
+        || line.contains(" W ")
+        || line.contains(" I ")
+        || line.contains(" F ");
+    if !has_level {
+        return false;
+    }
     let noisy_tags = [
         "OpenGLRenderer",
         "Choreographer",
         "BufferQueue",
-        //"SurfaceView",
-        //"ViewRootImpl"
+        "EGL_emulation",
+        "libEGL",
     ];
-
-
     for tag in noisy_tags {
-        if line.contains(tag){
+        if line.contains(tag) {
             return false;
         }
     }
     true
-
 }

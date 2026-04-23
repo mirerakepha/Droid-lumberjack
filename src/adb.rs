@@ -1,67 +1,117 @@
-/*
- * adb.rs
- * This is for piping & spawning adb logcart content to lumberjack
- */
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
+use std::sync::mpsc::Sender;
 
-fn get_foreground_pid() -> Option<String> {
-    // Dump the activity stack and pull the foreground package name
-    let output = Command::new("adb")
-        .args(["shell", "dumpsys", "activity", "recents"])
-        .output()
-        .ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for line in stdout.lines() {
-        if line.contains("Recent #0") {
-            // line looks like: * Recent #0: Task{... #42 A=com.your.app ...}
-            if let Some(start) = line.find("A=") {
-                let rest = &line[start + 2..];
-                let pkg = rest.split_whitespace().next()?
-                    .trim_matches('}')
-                    .to_string();
-                // now resolve that package name to a PID
-                let pid_out = Command::new("adb")
-                    .args(["shell", "pidof", "-s", &pkg])
-                    .output()
-                    .ok()?;
-                let pid = String::from_utf8_lossy(&pid_out.stdout)
-                    .trim()
-                    .to_string();
-                if !pid.is_empty() {
-                    return Some(pid);
-                }
-            }
-        }
-    }
-    None
-}
-
-pub fn spawn_logcat() -> Box<dyn Iterator<Item = String>> {
+pub fn spawn_logcat() -> Box<dyn Iterator<Item = String> + Send> {
     Command::new("adb").args(["logcat", "-c"]).output().ok();
 
-    let mut args = vec!["logcat", "-v", "brief"];
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
 
-    // Try to auto-detect the foreground app's PID
-    let pid = get_foreground_pid();
-    let pid_flag; // keep alive for the args slice
-    if let Some(ref p) = pid {
-        pid_flag = format!("--pid={}", p);
-        args.push(&pid_flag);
-    } else {
-        // Fallback: all E/W/I logs
-        args.extend_from_slice(&["*:E", "*:W", "*:I"]);
-    }
+    std::thread::spawn(move || {
+        run_logcat_stream(tx);
+    });
 
+    Box::new(rx.into_iter())
+}
+
+fn run_logcat_stream(tx: Sender<String>) {
     let mut child = Command::new("adb")
-        .args(&args)
+        .args([
+            "logcat", 
+            "-v", "brief",
+            "*:E", "*:W", "*:I"
+        ])
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to start adb logcat");
 
     let stdout = child.stdout.take().expect("No stdout");
-    // leak child so it isn't dropped (process keeps running)
-    std::mem::forget(child);
+    // let mut latched_pid: Option<String> = None;
 
-    Box::new(BufReader::new(stdout).lines().filter_map(Result::ok))
+    for line in BufReader::new(stdout).lines().filter_map(Result::ok) {
+        
+        if tx.send(line).is_err() {
+            break;
+        }
+
+        /*
+        // Try to latch a PID if we haven't yet
+        if latched_pid.is_none() {
+            if let Some(pid) = extract_pid(&line) {
+                if let Some(pkg) = package_for_pid(&pid) {
+                    eprintln!("[lumberjack] watching: {} (pid {})", pkg, pid);
+                    latched_pid = Some(pid);
+                }
+            }
+        }
+
+        // If we have a latched PID, only forward lines from that process
+        // If not latched yet, forward everything so the raw log panel isn't empty
+        let should_forward = match &latched_pid {
+            Some(pid) => line_matches_pid(&line, pid),
+            None => true,
+        };
+
+        if should_forward {
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
+        */
+    }
+    // make sure child is cleaned up
+    let _ = child.wait();
+}
+
+
+// Check if a logcat line belongs to a specific pid
+fn line_matches_pid(line: &str, pid: &str) -> bool {
+    if let Some(p) = extract_pid(line) {
+        p == pid
+    } else {
+        false
+    }
+}
+
+fn extract_pid(line: &str) -> Option<String> {
+    let open  = line.find('(')?;
+    let close = line[open..].find(')')? + open;
+    let pid = line[open + 1..close].trim().to_string();
+    if !pid.is_empty() && pid.chars().all(|c| c.is_ascii_digit()) {
+        Some(pid)
+    } else {
+        None
+    }
+}
+
+fn package_for_pid(pid: &str) -> Option<String> {
+    let out = Command::new("adb")
+        .args(["shell", "cat", &format!("/proc/{}/cmdline", pid)])
+        .output()
+        .ok()?;
+
+    let raw = String::from_utf8_lossy(&out.stdout);
+    let pkg = raw.split('\0').next()?.trim().to_string();
+
+    // Must look like a real app package:
+    // - has at least 2 dots (com.example.app, not com.launcher)
+    // - doesn't start with known system prefixes
+    let dot_count = pkg.chars().filter(|&c| c == '.').count();
+    let is_system = pkg.starts_with("com.android.")
+        || pkg.starts_with("com.google.android.")
+        || pkg.starts_with("android.")
+        || pkg.starts_with("com.sec.")      // Samsung system
+        || pkg.starts_with("com.samsung.")
+        || pkg.starts_with("com.miui.")     // Xiaomi system
+        || pkg.starts_with("com.real.")     // launcher
+        || pkg.starts_with("launcher")
+        || pkg.contains("launcher")
+        || pkg.contains("systemui")
+        || pkg.contains("inputmethod");
+
+    if dot_count >= 2 && !is_system && !pkg.is_empty() {
+        Some(pkg)
+    } else {
+        None
+    }
 }

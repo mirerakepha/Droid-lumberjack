@@ -26,10 +26,10 @@ impl App {
 
     //Raw Logs 
     pub fn add_raw(&mut self, line: String) {
-        self.raw_logs.insert(0, line);
+        self.raw_logs.push(line);
 
-        if self.raw_logs.len() > 50 {
-            self.raw_logs.pop();
+        if self.raw_logs.len() > 200 {
+            self.raw_logs.remove(0);
         }
     }
 
@@ -44,6 +44,10 @@ impl App {
         // remove old instance
         self.detections.retain(|d| d.name != key);
 
+        if self.selected > 0 && self.selected >= self.detections.len() {
+            self.selected = self.detections.len().saturating_sub(1)
+        } 
+
         // insert newest at top
         self.detections.insert(0, detection);
     }
@@ -53,7 +57,7 @@ impl App {
     }
 
     pub fn next(&mut self) {
-        if self.selected < self.detections.len() -1 {
+        if !self.detections.is_empty() && self.selected < self.detections.len() - 1 {
             self.selected += 1;
         }
     }
